@@ -1,0 +1,261 @@
+MAGMA.SPA <- function(cleanDat,env=.GlobalEnv) {
+
+	require(WGCNA,quietly=TRUE)
+	require(statmod,quietly=TRUE)
+
+	require(doParallel, quietly=TRUE)
+	clusterLocal <- makeCluster(c(rep("localhost",parallelThreads)),type="SOCK")
+	registerDoParallel(clusterLocal)
+
+	require(xlsx,quietly=TRUE)
+	require(ggplot2,quietly=TRUE)
+	require(gridBase,quietly=TRUE)
+	require(grid,quietly=TRUE)
+	require(gplots,quietly=TRUE)
+	require(calibrate,quietly=TRUE)
+
+	if (nchar(outFilePrefix)>0) outFilePrefix=paste0(outFilePrefix,".")
+	if (nchar(outFileSuffix)>0) outFileSuffix=paste0("-",outFileSuffix)
+
+	if (!plotOnly) {
+		#colnames should be colors without "ME" prefix; no grey
+		colnames(MEs)<-gsub("^ME","",colnames(MEs))
+		MEs<-MEs[,which(!colnames(MEs)=="grey")]
+	
+		moduleList=sapply( colnames(MEs),function(x) as.vector(data.frame(do.call("rbind",strsplit(  data.frame(do.call("rbind",strsplit(rownames(cleanDat),"[|]")))[,1]  ,"[;]")))[,1]  )[which(NETcolors==x)] )
+		for (b in 1:nModules) {
+			moduleList[[b]] <- unique(moduleList[[b]][moduleList[[b]] != ""])
+			moduleList[[a]] <- unique(moduleList[[b]][moduleList[[b]] != "0"])
+		}		
+	
+		# Order modules by size of modules [as determined using standard ranked colors (no ties)]
+		geneList <- list()
+		modcolors=unique(NETcolors)
+		modcolors<-modcolors[which(!modcolors=="grey")]
+		nModules=length(modcolors)
+		modcolors=labels2colors(c(1:nModules))  # INSURE CORRECT RANK ORDER
+		for (i in 1:length(modcolors)) 	geneList[[ modcolors[i] ]] <- moduleList[[ modcolors[i] ]]
+	
+		orderedLabels<- cbind(paste("M",seq(1:nModules),sep=""),labels2colors(c(1:nModules)))
+		xlabels.rankOrder <- orderedLabels[,1] 
+	
+	
+		statOutList <- foreach(thisMAGMAinputFile=as.character(MAGMAinputs)) %dopar% {
+	
+			## Prepare SNP_data
+			SNP_data <- read.csv(paste(MAGMAinputDir,thisMAGMAinputFile,sep=""),stringsAsFactors=FALSE,header=T) #read.table(genePValues, stringsAsFactors = FALSE,header=T)
+			SNP_data <- as.data.frame(SNP_data)
+			
+			#convert csv input's column 2 from p value if not already -log10(p) and filter p<=maxP only
+			if(max(SNP_data[,2],na.rm=TRUE)<=1) SNP_data[,2]= -log(SNP_data[,2])
+			SNP_data<-SNP_data[which(SNP_data[,2]>= -log10(maxP)),]
+			
+			nperm <- 10000
+			
+			# Create function for carrying out permutations for Null distribution
+			permute <- function(pVals_SNP,ind){
+				pVals_permuted <- sample(pVals_SNP)
+				mean(pVals_permuted[ind])
+			}
+			
+			## Permutation p Values can be zero when the significance of the association is very high. The following package (statmod) has a function permp that overcomes this problem and calculates a permutation p value using method described here http://www.statsci.org/webguide/smyth/pubs/permp.pdf
+			
+			require(statmod)
+			commonGenes<-list()
+			for (i in 1:nModules){
+				pVals_SNP <- as.numeric(SNP_data[c(1:nrow(SNP_data)),2])
+				ind <- which(SNP_data[,1] %in% geneList[[i]])
+				commonGenes[[i]] <- intersect(geneList[[i]],SNP_data[,1])
+			
+				module_mean <- mean(pVals_SNP[ind])
+				module_sd <- sd(pVals_SNP[ind])
+				module_sem <- module_sd / sqrt(length(geneList[[i]]))
+				permMean <- replicate(nperm,permute(pVals_SNP,ind))
+				pVal_module <- sum(abs(permMean) >= abs(module_mean)) / nperm
+				numCommon <- length(commonGenes[[i]])
+				NES_perm <- (permMean - mean(permMean)) / sd(permMean)
+				NES_module <- (module_mean - mean(permMean)) / sd(permMean) 
+				NESpVal_module <- sum(abs(NES_perm) >= abs(NES_module)) / nperm
+				if (!is.na(NESpVal_module)){
+					statmodP <- permp(sum(abs(NES_perm) >= abs(NES_module)),nperm,length(SNP_data[[1]]),length(geneList[[i]]))
+				}else{
+					statmodP <- "NA"
+				}
+				if (i == 1){
+					mean_allModules <- module_mean
+			#		commonGenes_all <- c(commonGenes,rep(NA,len=50))
+					permMean_all <- permMean
+					pVal_all <- pVal_module
+					numCommon_all <- numCommon
+					NES_perm_all <- NES_perm
+					NES_module_all <- NES_module
+					NESpVal_all <- NESpVal_module
+					statmodP_all <- statmodP
+				}
+				else{
+					mean_allModules <- c(mean_allModules,module_mean)
+			#		commonGenes_all <- cbind(commonGenes_all,c(commonGenes,rep(NA,len=50)))
+					permMean_all <- cbind(permMean_all,permMean)
+					pVal_all <- cbind(pVal_all,pVal_module)
+					numCommon_all <- c(numCommon_all,numCommon)
+					NES_perm_all <- cbind(NES_perm_all, NES_perm)
+					NES_module_all <- c(NES_module_all, NES_module)
+					NESpVal_all <- cbind(NESpVal_all,NESpVal_module)
+					statmodP_all <- cbind(statmodP_all,statmodP)
+			
+				}
+				
+			}
+			
+			maxHitListSize<-max(unlist(lapply(commonGenes,length)))
+			commonGenes_all1<-lapply(commonGenes,function(x) if (length(x)==maxHitListSize) { sort(x) } else { c(sort(x), rep(NA,maxHitListSize-length(x))) })
+			#commonGenes_all<- as.data.frame(matrix(NA,nrow=maxHitListSize,ncol=0))
+			#for (i in 1:length(commonGenes_all1)) commonGenes_all<-cbind(commonGenes_all, commonGenes_all1[[i]])
+			commonGenes_all <- matrix(unlist(commonGenes_all1),nrow=maxHitListSize,ncol=length(commonGenes),byrow=FALSE)
+			
+			names(mean_allModules) <- names(geneList)
+			names(numCommon_all) <- names(geneList)
+			names(NES_module_all) <- names(geneList)
+			colnames(commonGenes_all) <- names(geneList)
+			colnames(permMean_all) <- names(geneList)
+			colnames(pVal_all) <- names(geneList)
+			colnames(NES_perm_all) <- names(geneList)
+			colnames(NESpVal_all) <- names(geneList)
+			colnames(statmodP_all) <- names(geneList)
+			
+			## Write output to tables and PDF
+			pVal_names<-colnames(pVal_all)
+			pVal_all<-as.vector(pVal_all)
+			names(pVal_all)<-pVal_names
+			
+			NESpVal_names<-colnames(NESpVal_all)
+			NESpVal_all<-as.vector(NESpVal_all)
+			names(NESpVal_all)<-NESpVal_names
+			
+			statmodP_names<-colnames(statmodP_all)
+			statmodP_all<-as.vector(statmodP_all)
+			names(statmodP_all)<-statmodP_names
+			
+			all_output <- rbind(mean_allModules, NES_module_all, numCommon_all,
+			                    pVal_all, NESpVal_all, statmodP_all,
+			                    commonGenes_all)
+	#		write.table(all_output,file=paste("./",outFilePrefix,"MAGMA-SPA-",thisMAGMAinputFile,".txt",sep=""), na="", row.names=T,col.names=NA,sep="\t", quote=FALSE)
+			
+			pdf(paste("./",outFilePrefix,"MAGMA-SPA-",thisMAGMAinputFile,".pdf",sep=""),height=8,width=8)
+				par(mfrow=c(4,4))
+				par(mar=c(4,4,4,2))
+				barplot(mean_allModules,main = "Mean - Enrichment Score", ylab = "Mean",cex.names=0.8, width=0.8,las=2,cex.main=0.95,names.arg=xlabels.rankOrder)
+				barplot(NES_module_all,main = "Mean - Scaled Enrichment Score", ylab = "Mean",cex.names=0.8, width=0.8,las=2,cex.main=0.95,names.arg=xlabels.rankOrder)
+				
+				modColors <- names(geneList)
+				for (a in 1:nModules){
+					modClr <- xlabels.rankOrder[a]
+					NESpValue_module <- NESpVal_all[a]
+					if (is.na(NESpValue_module)){
+						next
+					} else{
+						par(mar=c(4,4,4,4))
+						permMean_Module <- NES_perm_all[,a]
+						hist(permMean_Module,xlab = "Normalized ES (Mean)", ylab = "Frequency", main=modClr, sub = paste("pValue",NESpValue_module),col="grey",freq=T, border="black",cex.main=0.95)
+						abline(v=NES_module_all[a],col="red")	
+					}
+				}
+			dev.off()
+	
+	
+			return(list(all_output, NES_module_all,thisMAGMAinputFile))
+		}
+	
+		# re-combine list elements from two outputs, from all MAGMAinputFile runs
+		all_output            = do.call(list, lapply(statOutList,function(x){x[[1]]}) )
+		NES_module_all        = do.call(list, lapply(statOutList,function(x){x[[2]]}) )
+		names(all_output)<-names(NES_module_all) <- MAGMAinputs <- do.call(c,lapply(statOutList,function(x){x[[3]]}))
+	
+		all_output <- lapply(all_output,function(x) { rownames(x)[7:nrow(x)]<- paste0("geneHit",1:(nrow(x)-6)); x; })
+	
+		##Export all gene lists to multi-sheet Excel 
+		my.xlsx=createWorkbook()
+		for (sheetName in MAGMAinputs) addDataFrame(as.data.frame(all_output[[sheetName]]), sheet=createSheet(my.xlsx, sheetName), startColumn=1, row.names=TRUE,col.names=TRUE)
+		saveWorkbook(my.xlsx, paste0("./",outFilePrefix,"MAGMA-SPA",outFileSuffix,".xlsx"))
+	
+	
+		#################
+		## Summary plot of multiple GWAS MAGMA bootstrap statistics
+	
+		allBarData<-do.call(rbind,NES_module_all)  #(AD.IGAP.1234=AD1234_NES_all,AD.2019=AD.Kunkle_NES_all,ASD=ASD_NES_all,SCZ=SCZ_NES_all,PD=PD_NES_all,ALS=ALS_NES_all)
+		rownames(allBarData)<-MAGMAinputs
+		allBarData<-allBarData[,c(1:nModules)]
+		allBarData[!is.finite(allBarData)]<-0
+	
+		xlabels = if (relatednessOrderBar) { orderedLabels[match(colnames(MEs),orderedLabels[,2]),1] } else { xlabels.rankOrder }
+		if (relatednessOrderBar) allBarData <- allBarData[,colnames(MEs)]
+
+	} #end if (!plotOnly)
+
+	# Check that plot data exists, in case plotOnly==TRUE
+	if (!exists("xlabels") | !exists("allBarData")) stop("Processed MAGMA Enrichment in Modules not found. Cannot plot.\nRerun with plotOnly=FALSE.")
+
+##Simplest output
+#	pdf(paste0("./",outFilePrefix,"MAGMA-MS.Enr_BarPlot",outFileSuffix,".pdf"),height=8,width=16)
+#	 par(mfrow=c(1,1))
+#	 par(mar=c(4,6,4,2))
+#	 barplot(allBarData,main =paste0("Enrichment of MAGMA-implicated Genetic Risk of Disease(s)\nbased on ",length(MAGMAinputs)," GWAS-derived MAGMA summary p (<=",maxP,") gene lists,\n(as published in Seyfried, et al, Cell Systems, 2017)"), ylab = "Mean-scaled Enr. Score",cex.names=0.70, cex.lab=1.75, width=0.8,las=2,cex.main=0.95,
+#		 names.arg=xlabels, beside=TRUE,
+#                 col=barcolors,
+#                 legend.text=TRUE, args.legend=list(x="top", bty="n", inset=c(0, 0)), xpd=FALSE,ylim=c(min(na.omit(allBarData))-1,max(na.omit(allBarData))+1.3))
+#	 abline(h=1.28, lty=2, col="red")
+#	dev.off()
+
+## Output with inset for color swatches for x axis labels 
+	
+	## Create ordered swatches for inset at x axis using ggplot bar
+	 colorData=data.frame(Mnum=as.character(xlabels),yBlank=c(1), fill=gplots::col2hex(unique(WGCNA::labels2colors(as.numeric(gsub("M","",as.character(xlabels)))))), fillName=unique(WGCNA::labels2colors(as.numeric(gsub("M","",as.character(xlabels))))))
+	# barplot(as.matrix(diff(1:93)), horiz=T, col=colorData$fillName, axes=F, xlab=NA)
+	 p <- ggplot(colorData, aes(x=Mnum, y=yBlank)) + geom_bar(stat="identity", fill=colorData$fill, color="#000000", size=0.01, width = 0.8675, aes(fill=fillName)) +theme(axis.title = element_blank(), axis.text.x = element_text(face="bold", color="#000000", size=12, angle=90), axis.ticks.y=element_blank(), panel.background = element_rect(fill = "transparent",colour = NA), panel.grid.minor = element_blank(), panel.grid.major = element_blank(), plot.background = element_rect(fill = "transparent",colour = NA)) +
+	      scale_x_discrete( limits=colorData$Mnum)  + theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.3), axis.text.y=element_text(color="#FFFFFF")) + labs(x="", y="") + scale_y_continuous(expand = expansion(mult = c(0, 0)), limits=c(0,1), breaks=c(0), label=c(""))
+	
+	
+	pdf(file=paste0("./",outFilePrefix,"MAGMA-MS.Enr_BarPlot",outFileSuffix,".pdf"),width=16,height=9, onefile=FALSE)  # onefile=FALSE for forcing no blank page 1.
+	
+	grid.newpage()
+#	grid.rect(gp=gpar(col="black"))
+	#grid.text("",
+	#  y=unit(1, "npc") - unit(1, "lines"), gp=gpar(col="black"))
+	#grid.rect(gp=gpar(col="green"))
+	
+	pushViewport(viewport(width=1, height=1, name="OuterFrame", just=c("center","center")))
+	
+	par(mar=c(5,6,4,2))
+	plot.new()
+	
+	#	 par(omi = gridFIG(), new = TRUE)
+		 par(fig = gridFIG(), new = TRUE)
+		 opar <- par(lwd = 0.01)
+	
+		 barplot(allBarData,main =paste0("Enrichment of MAGMA-implicated Genetic Risk of Disease(s)\nbased on ",length(MAGMAinputs)," GWAS-derived MAGMA summary p (<=",maxP,") gene lists,\n(as published in Seyfried, et al, Cell Systems, 2017)"), ylab = "Mean-scaled Enr. Score",cex.names=0.70, cex.lab=1.75, width=0.8,las=2,cex.main=0.95,
+			 names.arg=rep("",length(xlabels)),  #xlabels,
+			 beside=TRUE, space=c(0,rep(c(rep(0,length(MAGMAinputs)-1),0.3),length(xlabels)-1),0), #border=NA,
+	                 col=barcolors,
+	                 legend.text=TRUE, args.legend=list(x="top", bty="n", inset=c(0, 0)), xpd=FALSE,ylim=c(min(na.omit(allBarData))-1,max(na.omit(allBarData))+1.3))
+		 abline(h=qnorm(FDR,lower=F), lty=3, lwd=1, col="red")
+		 calibrate::textxy(X=0,Y=qnorm(FDR,lower=F),paste0("FDR = ",FDR*100,"%"),cex=1)
+	#upViewport()
+	
+	#For onscreen: pushViewport(viewport(width=0.92245, height=0.10, x=unit(9.255, "inch"), y=0.035)) #ok for out to screen, 
+	#For 93 modules:
+	#pushViewport(viewport(width=0.8498, height=0.08, x=unit(8.381, "inch"), y=0.0925)) #for out to PDF
+	#For 23 modules:
+	#pushViewport(viewport(width=0.8618, height=0.08, x=unit(8.381, "inch"), y=0.0925)) #for out to PDF
+	#Automatic adjustment of viewport inset for swatches (works for 43-93 modules)
+	#pushViewport(viewport(width=0.879-0.00031*length(xlabels), height=0.08, x=0.524, y=0.0925, just=c("center","center"))) #for out to PDF
+	#(works for 13, 43, 93 modules)
+	 pushViewport(viewport(width=0.879-(0.00031-0.00000571*(length(xlabels)-93))*length(xlabels), height=0.08, x=0.5235, y=0.0925, just=c("center","center"))) #for out to PDF
+	 par(fig = gridFIG(), new = TRUE)
+	#  just="bottom", name="Swatches"))
+	# grid.rect(gp=gpar(col="blue"))
+	 print(p, newpage=FALSE)
+	
+	dev.off()
+
+return(list(allBarData=allBarData,xlabels=xlabels, all_output=all_output))
+}  # end Function MAGMA.SPA
