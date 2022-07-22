@@ -34,7 +34,7 @@ NETcolors= net$colors     #module color assignments, vector of length equal to n
 outFilePrefix="5"         #Filename prefix; step in the pipeline -- for file sorting by name.
 outFileSuffix="AD_ALS_GWAS_ensembleAvg"
 parallelThreads=8         #Each permutation analysis is run on a separate thread simultaneously, up to this many threads.
-plotOnly=FALSE		        #If plotOnly is TRUE, the variables created by MAGMA.SPA function holding plot data should already exist (xlabels, allBarData).
+plotOnly=FALSE            #If plotOnly is TRUE, the variables created by MAGMA.SPA function holding plot data should already exist (xlabels, allBarData).
 ##################################
 
 # Run the permutation analysis and generate all outputs
