@@ -1,5 +1,5 @@
 # MAGMA.SPA
-### MAGMA GWAS Genetic Risk Coexpression Module Integration with _Seyfried Pipeline Adaptation_
+### MAGMA GWAS, TWAS, or PWAS Genetic Risk Coexpression Module Integration with _Seyfried Pipeline Adaptation_
 
 Requires the following R packages:
  *WGCNA, statmod, doParallel, xlsx, ggplot2, gridBase, grid, gplots, calibrate*
