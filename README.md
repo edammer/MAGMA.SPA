@@ -10,7 +10,7 @@ Sample Wrapper for MAGMA.SPA function:
 #MAGMA-SPA (Seyfried Pipeline Adaptation for MAGMA)
 #---------------------------------
 
-Required parameters, variables, and data must be set as shown above in .GlobalEnv before calling function; currently no defaults are automatic.
+# Required parameters, variables, and data must be set as shown above in .GlobalEnv before calling function; currently no defaults are automatic.
 ##################################
 MAGMAinputDir= "E:/5.MAGMAinput/"
 
