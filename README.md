@@ -18,7 +18,7 @@ MAGMAinputs= c(	"AD_GWAS_ENSEMBLE_averageMinusLogP(Plt0.05).csv",
                 "ALS_GWAS_ENSEMBLE_avgMinusLogP(Plt0.05).csv")     #These files exist in MAGMAinputDir
 
 maxP=0.05                 #no genes with a MAGMA summarized p value greater than this will be considered even if in the MAGMA-derived input files.
-FDR=0.10		              #FDR or q value (0 < FDR < 1); recommend 0.10, i.e. 10%
+FDR=0.10                  #FDR or q value (0 < FDR < 1); recommend 0.10, i.e. 10%
 barcolors= c("darkslateblue","mediumorchid")  #specify one unique color for each of above MAGMAinputs
                           #common colors: "darkslateblue","mediumorchid", "seagreen3","hotpink","goldenrod","darkorange","darkmagenta", ...
 relatednessOrderBar=TRUE  #Plot mean scaled enrichment bar plot in column order (relatedness) of MEs?  If FALSE, they will be plotted in size rank order M1, M2, ...
