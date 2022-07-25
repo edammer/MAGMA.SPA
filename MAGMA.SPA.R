@@ -22,15 +22,16 @@ MAGMA.SPA <- function(cleanDat,env=.GlobalEnv) {
 		colnames(MEs)<-gsub("^ME","",colnames(MEs))
 		MEs<-MEs[,which(!colnames(MEs)=="grey")]
 	
-		moduleList=sapply( colnames(MEs),function(x) as.vector(data.frame(do.call("rbind",strsplit(  data.frame(do.call("rbind",strsplit(rownames(cleanDat),"[|]")))[,1]  ,"[;]")))[,1]  )[which(NETcolors==x)] )
+		moduleList=sapply( colnames(MEs),function(x) as.vector(data.frame(do.call("rbind",strsplit(  data.frame(do.call("rbind",strsplit(rownames(cleanDat),"[|]")))[,1]  ,"[;]")))[,1]  )[which(unlist(NETcolors)==x)] )
+		nModules=length(names(moduleList))
 		for (b in 1:nModules) {
 			moduleList[[b]] <- unique(moduleList[[b]][moduleList[[b]] != ""])
-			moduleList[[a]] <- unique(moduleList[[b]][moduleList[[b]] != "0"])
+			moduleList[[b]] <- unique(moduleList[[b]][moduleList[[b]] != "0"])
 		}		
 	
 		# Order modules by size of modules [as determined using standard ranked colors (no ties)]
 		geneList <- list()
-		modcolors=unique(NETcolors)
+		modcolors=unique(unlist(NETcolors))
 		modcolors<-modcolors[which(!modcolors=="grey")]
 		nModules=length(modcolors)
 		modcolors=labels2colors(c(1:nModules))  # INSURE CORRECT RANK ORDER
@@ -91,8 +92,7 @@ MAGMA.SPA <- function(cleanDat,env=.GlobalEnv) {
 					NES_module_all <- NES_module
 					NESpVal_all <- NESpVal_module
 					statmodP_all <- statmodP
-				}
-				else{
+				}else{
 					mean_allModules <- c(mean_allModules,module_mean)
 			#		commonGenes_all <- cbind(commonGenes_all,c(commonGenes,rep(NA,len=50)))
 					permMean_all <- cbind(permMean_all,permMean)
