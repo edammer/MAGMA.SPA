@@ -15,7 +15,7 @@ Sample Wrapper for MAGMA.SPA function:
 MAGMAinputDir= "E:/5.MAGMAinput/"
 
 MAGMAinputs= c(	"AD_GWAS_ENSEMBLE_averageMinusLogP(Plt0.05).csv",
-                "ALS_GWAS_ENSEMBLE_avgMinusLogP(Plt0.05).csv")     #These files exist in MAGMAinputDir
+                "ALS_GWAS_ENSEMBLE_avgMinusLogP(Plt0.05).csv")     #These files must be in MAGMAinputDir
 
 maxP=0.05                 #no genes with a MAGMA summarized p value greater than this will be considered even if in the MAGMA-derived input files.
 FDR=0.10                  #FDR or q value (0 < FDR < 1); recommend 0.10, i.e. 10%
@@ -29,17 +29,18 @@ NETcolors= net$colors     #module color assignments, vector of length equal to n
 #MEs= MEs                 #Module Eigengenes (or Eigenproteins) with columns of MEs ordered in relatedness order
 #cleanDat= cleanDat       #rownames must start with HUMAN gene symbols, separated by any other rowname information using ';' or '|' character
 
-# Other required variables
+# Other variables
 #################################
 outFilePrefix="5"         #Filename prefix; step in the pipeline -- for file sorting by name.
 outFileSuffix="AD_ALS_GWAS_ensembleAvg"
 parallelThreads=8         #Each permutation analysis is run on a separate thread simultaneously, up to this many threads.
+calculateMEs=TRUE         #Recalculate MEs and their relatedness order, even if the data already exists.
 plotOnly=FALSE            #If plotOnly is TRUE, the variables created by MAGMA.SPA function holding plot data should already exist (xlabels, allBarData).
 ##################################
 
 # Run the permutation analysis and generate all outputs
 source("MAGMA.SPA.R")
-MAGMAoutList <- MAGMA.SPA(cleanDat)
+MAGMAoutList <- MAGMA.SPA()
 # Outputs XLSX, PDF, and list of barplot y values (allBarData), barplot labels (xlabels), and all permutation statistics and gene symbol hits (all_output)
 
 
