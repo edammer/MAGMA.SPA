@@ -49,5 +49,5 @@ allBarData<-MAGMAoutList$allBarData
 xlabels<-MAGMAoutList$xlabels
 all_output<-MAGMAoutList$all_output
 plotOnly=TRUE
-MAGMAoutList <- MAGMA.SPA(cleanDat)
+MAGMAoutList <- MAGMA.SPA()
 
