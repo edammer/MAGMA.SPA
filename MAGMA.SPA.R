@@ -1,27 +1,57 @@
-MAGMA.SPA <- function(cleanDat,env=.GlobalEnv) {
+MAGMA.SPA <- function(dummyVar="",env=.GlobalEnv) {
 
-	require(WGCNA,quietly=TRUE)
-	require(statmod,quietly=TRUE)
+	suppressPackageStartupMessages(require(WGCNA,quietly=TRUE))
+	suppressPackageStartupMessages(require(statmod,quietly=TRUE))
+	suppressPackageStartupMessages(require(xlsx,quietly=TRUE))
+	suppressPackageStartupMessages(require(ggplot2,quietly=TRUE))
+	suppressPackageStartupMessages(require(gridBase,quietly=TRUE))
+	suppressPackageStartupMessages(require(grid,quietly=TRUE))
+	suppressPackageStartupMessages(require(gplots,quietly=TRUE))
+	suppressPackageStartupMessages(require(calibrate,quietly=TRUE))
 
-	require(doParallel, quietly=TRUE)
-	clusterLocal <- makeCluster(c(rep("localhost",parallelThreads)),type="SOCK")
-	registerDoParallel(clusterLocal)
+	if (!exists("outFilePrefix")) { outFilePrefix="" } else { if (nchar(outFilePrefix)>0) outFilePrefix=paste0(outFilePrefix,".") }
+	if (!exists("outFileSuffix")) { if (exists("FileBaseName")) { outFileSuffix=paste0("-",FileBaseName) } else { outFileSuffix="-unspecified_study" }} else { if (nchar(outFileSuffix)>0) outFileSuffix=paste0("-",outFileSuffix) }
 
-	require(xlsx,quietly=TRUE)
-	require(ggplot2,quietly=TRUE)
-	require(gridBase,quietly=TRUE)
-	require(grid,quietly=TRUE)
-	require(gplots,quietly=TRUE)
-	require(calibrate,quietly=TRUE)
+	if (!exists("maxP")) { cat("- maxP variable for maximum p of nominally significant genes to keep for permutation not set. Defaulting to maxP=0.05 ...\n"); maxP=0.05; }
+	if (!exists("FDR")) { cat("- FDR variable for q value of significant enrichment of risk in any module not set. Defaulting to FDR=0.10 ...\n"); FDR=0.10; }
+	if (!exists("barcolors")) { cat("- barcolors variable not set. Default colors will be used...\n"); barcolors=c("darkslateblue","hotpink","mediumorchid","seagreen3","skyblue","goldenrod","darkorange","darkmagenta","darkred","darkgreen","darkturquoise","saddlebrown","maroon","honeydew","coral","purple","orangered3","lightcoral","cyan","yellow")[1:length(MAGMAinputs)]; }
 
-	if (nchar(outFilePrefix)>0) outFilePrefix=paste0(outFilePrefix,".")
-	if (nchar(outFileSuffix)>0) outFileSuffix=paste0("-",outFileSuffix)
+	if (!exists("relatednessOrderBar") | !is.logical("relatednessOrderBar")) { cat("- relatednessOrderBar not found or not TRUE/FALSE. Ordering modules by relatedness order in MEs.\n"); relatednessOrderBar=TRUE; }
+	if (!exists("plotOnly") | !is.logical("plotOnly")) { cat("- plotOnly not found or not TRUE/FALSE. Performing all calculations on provided inputs anew.\n"); plotOnly=FALSE; }
 
 	if (!plotOnly) {
-		#colnames should be colors without "ME" prefix; no grey
-		colnames(MEs)<-gsub("^ME","",colnames(MEs))
-		MEs<-MEs[,which(!colnames(MEs)=="grey")]
-	
+		if (!exists("cleanDat")) stop("\ncleanDat variable must exist, holding gene product (rows) X sample (columns) data in the form of log2(relative abundance).\n\n")
+
+		if (!exists("NETcolors")) if(exists("net")) { if ("colors" %in% names(net)) { NETcolors=net$colors } else { NETcolors=c() } } else { NETcolors=c() }
+		if (!length(NETcolors)==nrow(cleanDat)) { stop("\nNetwork color assignment vector not supplied or not of length in rows of cleanDat; will not be included in output table and data frame.\n\n") }
+
+		MAGMAinputDir=gsub("\\/\\/","/",paste0(MAGMAinputDir,"/"))
+		for (file in MAGMAinputs) if (!file.exists(paste0(MAGMAinputDir,file))) stop(paste0("\n",MAGMAinputDir,file," not found. Cannot continue.\n\n"))
+
+		if("MEs" %in% names(net)) MEs=net$MEs
+		if(!exists("MEs") | !exists("calculateMEs")) calculateMEs=TRUE
+		if(calculateMEs) {
+		  cat("- MEs data frame for module eigengenes not found or calculateMEs=TRUE.\n  Attempting to recalculate from cleanDat and net$colors or NETcolors...\n")
+		  if(!exists("NETcolors")) if("colors" %in% names(net)) NETcolors=net$colors
+		  # if(!exists("cleanDat") | !exists("NETcolors")) stop("Cannot find NETcolors and/or cleanDat for ME calculation.\n")
+		  MEs<-tmpMEs<-data.frame()
+		  MEList = moduleEigengenes(t(cleanDat), colors = NETcolors)
+		  MEs = orderMEs(MEList$eigengenes)
+		  colnames(MEs)<-gsub("^ME","",colnames(MEs))  # let's be consistent in case prefix was added, remove it.
+		  if("grey" %in% colnames(MEs)) MEs[,"grey"] <- NULL
+		}
+		colnames(MEs)=gsub("^ME","",colnames(MEs))
+		if("grey" %in% colnames(MEs)) MEs[,"grey"] <- NULL
+
+		if(!exists("parallelThreads")) { cat("- parallelThreads variable not set to a number. Attempting to use ",as.numeric(length(MAGMAinputs))," threads for quickest processing...\n"); parallelThreads=as.numeric(length(MAGMAinputs)); }
+		if(!is.numeric(as.numeric(parallelThreads))) { cat("- parallelThreads variable not set to a number. Attempting to use ",as.numeric(length(MAGMAinputs))," threads for quickest processing...\n"); parallelThreads=as.numeric(length(MAGMAinputs)); }
+
+		cat(paste0("\nSetting up parallel backend with ",parallelThreads," threads...\n"))
+		suppressPackageStartupMessages(require(doParallel, quietly=TRUE))
+		# if(exists("clusterLocal")) stopCluster(clusterLocal)
+		clusterLocal <- makeCluster(c(rep("localhost",parallelThreads)),type="SOCK")
+		registerDoParallel(clusterLocal)
+
 		moduleList=sapply( colnames(MEs),function(x) as.vector(data.frame(do.call("rbind",strsplit(  data.frame(do.call("rbind",strsplit(rownames(cleanDat),"[|]")))[,1]  ,"[;]")))[,1]  )[which(unlist(NETcolors)==x)] )
 		nModules=length(names(moduleList))
 		for (b in 1:nModules) {
@@ -40,7 +70,7 @@ MAGMA.SPA <- function(cleanDat,env=.GlobalEnv) {
 		orderedLabels<- cbind(paste("M",seq(1:nModules),sep=""),labels2colors(c(1:nModules)))
 		xlabels.rankOrder <- orderedLabels[,1] 
 	
-	
+		cat(paste0("Performing boostrap statistics to find mean scaled enrichment scores of significant gene-level risk in ",nModules," modules with ",length(MAGMAinputs)," lists.\n[1 list per each of up to ",parallelThreads," threads at a time]...\n"))
 		statOutList <- foreach(thisMAGMAinputFile=as.character(MAGMAinputs)) %dopar% {
 	
 			## Prepare SNP_data
@@ -193,10 +223,10 @@ MAGMA.SPA <- function(cleanDat,env=.GlobalEnv) {
 	} #end if (!plotOnly)
 
 	# Check that plot data exists, in case plotOnly==TRUE
-	if (!exists("xlabels") | !exists("allBarData")) stop("Processed MAGMA Enrichment in Modules not found. Cannot plot.\nRerun with plotOnly=FALSE.")
+	if (!exists("xlabels") | !exists("allBarData")) stop("Processed MAGMA Enrichment in Modules not found. Cannot plot.\nRerun with plotOnly=FALSE.\n\n")
 
 ##Simplest output
-#	pdf(paste0("./",outFilePrefix,"MAGMA-MS.Enr_BarPlot",outFileSuffix,".pdf"),height=8,width=16)
+#	pdf(paste0("./",outFilePrefix,"MAGMA-Enr_BarPlot",outFileSuffix,".pdf"),height=8,width=16)
 #	 par(mfrow=c(1,1))
 #	 par(mar=c(4,6,4,2))
 #	 barplot(allBarData,main =paste0("Enrichment of MAGMA-implicated Genetic Risk of Disease(s)\nbased on ",length(MAGMAinputs)," GWAS-derived MAGMA summary p (<=",maxP,") gene lists,\n(as published in Seyfried, et al, Cell Systems, 2017)"), ylab = "Mean-scaled Enr. Score",cex.names=0.70, cex.lab=1.75, width=0.8,las=2,cex.main=0.95,
@@ -215,7 +245,7 @@ MAGMA.SPA <- function(cleanDat,env=.GlobalEnv) {
 	      scale_x_discrete( limits=colorData$Mnum)  + theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.3), axis.text.y=element_text(color="#FFFFFF")) + labs(x="", y="") + scale_y_continuous(expand = expansion(mult = c(0, 0)), limits=c(0,1), breaks=c(0), label=c(""))
 	
 	
-	pdf(file=paste0("./",outFilePrefix,"MAGMA-MS.Enr_BarPlot",outFileSuffix,".pdf"),width=16,height=9, onefile=FALSE)  # onefile=FALSE for forcing no blank page 1.
+	pdf(file=paste0("./",outFilePrefix,"MAGMA-Enr_BarPlot",outFileSuffix,".pdf"),width=16,height=9, onefile=FALSE)  # onefile=FALSE for forcing no blank page 1.
 	
 	grid.newpage()
 #	grid.rect(gp=gpar(col="black"))
