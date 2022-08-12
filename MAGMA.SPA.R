@@ -97,7 +97,7 @@ MAGMA.SPA <- function(dummyVar="",env=.GlobalEnv) {
 			for (i in 1:nModules){
 				pVals_SNP <- as.numeric(SNP_data[c(1:nrow(SNP_data)),2])
 				ind <- which(SNP_data[,1] %in% geneList[[i]])
-				commonGenes[[i]] <- intersect(geneList[[i]],SNP_data[,1])
+				commonGenes[[i]] <- as.vector(na.omit(intersect(geneList[[i]],SNP_data[,1])))
 			
 				module_mean <- mean(pVals_SNP[ind])
 				module_sd <- sd(pVals_SNP[ind])
@@ -115,7 +115,7 @@ MAGMA.SPA <- function(dummyVar="",env=.GlobalEnv) {
 				}
 				if (i == 1){
 					mean_allModules <- module_mean
-			#		commonGenes_all <- c(commonGenes,rep(NA,len=50))
+			#		commonGenes_all <- c(commonGenes[[i]])  #,rep(NA,len=50)
 					permMean_all <- permMean
 					pVal_all <- pVal_module
 					numCommon_all <- numCommon
@@ -125,7 +125,7 @@ MAGMA.SPA <- function(dummyVar="",env=.GlobalEnv) {
 					statmodP_all <- statmodP
 				}else{
 					mean_allModules <- c(mean_allModules,module_mean)
-			#		commonGenes_all <- cbind(commonGenes_all,c(commonGenes,rep(NA,len=50)))
+			#		commonGenes_all <- cbind(commonGenes_all,c(commonGenes[[i]]))  #,rep(NA,len=50)
 					permMean_all <- cbind(permMean_all,permMean)
 					pVal_all <- cbind(pVal_all,pVal_module)
 					numCommon_all <- c(numCommon_all,numCommon)
@@ -142,7 +142,7 @@ MAGMA.SPA <- function(dummyVar="",env=.GlobalEnv) {
 			commonGenes_all1<-lapply(commonGenes,function(x) if (length(x)==maxHitListSize) { sort(x) } else { c(sort(x), rep(NA,maxHitListSize-length(x))) })
 			#commonGenes_all<- as.data.frame(matrix(NA,nrow=maxHitListSize,ncol=0))
 			#for (i in 1:length(commonGenes_all1)) commonGenes_all<-cbind(commonGenes_all, commonGenes_all1[[i]])
-			commonGenes_all <- matrix(unlist(commonGenes_all1),nrow=maxHitListSize,ncol=length(commonGenes),byrow=FALSE)
+			commonGenes_all <- matrix(unlist(commonGenes_all1),nrow=maxHitListSize,ncol=length(commonGenes_all1),byrow=FALSE)
 			
 			names(mean_allModules) <- names(geneList)
 			names(numCommon_all) <- names(geneList)
