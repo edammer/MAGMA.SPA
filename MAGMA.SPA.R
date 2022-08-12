@@ -17,7 +17,8 @@ MAGMA.SPA <- function(dummyVar="",env=.GlobalEnv) {
 	if (!exists("barcolors")) { cat("- barcolors variable not set. Default colors will be used...\n"); barcolors=c("darkslateblue","hotpink","mediumorchid","seagreen3","skyblue","goldenrod","darkorange","darkmagenta","darkred","darkgreen","darkturquoise","saddlebrown","maroon","honeydew","coral","purple","orangered3","lightcoral","cyan","yellow")[1:length(MAGMAinputs)]; }
 
 	if (!exists("relatednessOrderBar") | !is.logical("relatednessOrderBar")) { cat("- relatednessOrderBar not found or not TRUE/FALSE. Ordering modules by relatedness order in MEs.\n"); relatednessOrderBar=TRUE; }
-	if (!exists("plotOnly") | !is.logical("plotOnly")) { cat("- plotOnly not found or not TRUE/FALSE. Performing all calculations on provided inputs anew.\n"); plotOnly=FALSE; }
+	if (!exists("plotOnly")) { cat("- plotOnly not found. Performing all calculations on provided inputs anew.\n"); plotOnly=FALSE; }
+        if (!is.logical(plotOnly)) { cat("- plotOnly not TRUE/FALSE. Performing all calculations on provided inputs anew.\n"); plotOnly=FALSE; }
 
 	if (!plotOnly) {
 		if (!exists("cleanDat")) stop("\ncleanDat variable must exist, holding gene product (rows) X sample (columns) data in the form of log2(relative abundance).\n\n")
@@ -264,7 +265,7 @@ MAGMA.SPA <- function(dummyVar="",env=.GlobalEnv) {
 	
 		 barplot(allBarData,main =paste0("Enrichment of MAGMA-implicated Genetic Risk of Disease(s)\nbased on ",length(MAGMAinputs)," GWAS-derived MAGMA summary p (<=",maxP,") gene lists,\n(as published in Seyfried, et al, Cell Systems, 2017)"), ylab = "Mean-scaled Enr. Score",cex.names=0.70, cex.lab=1.75, width=0.8,las=2,cex.main=0.95,
 			 names.arg=rep("",length(xlabels)),  #xlabels,
-			 beside=TRUE, space=c(0,rep(c(rep(0,length(MAGMAinputs)-1),0.3),length(xlabels)-1),0), #border=NA,
+			 beside=TRUE, space=c(0,rep(c(rep(0,length(MAGMAinputs)-1),0.15*length(MAGMAinputs)),length(xlabels)-1),rep(0,length(MAGMAinputs)-1)), #border=NA,
 	                 col=barcolors,
 	                 legend.text=TRUE, args.legend=list(x="top", bty="n", inset=c(0, 0)), xpd=FALSE,ylim=c(min(na.omit(allBarData))-1,max(na.omit(allBarData))+1.3))
 		 abline(h=qnorm(FDR,lower=F), lty=3, lwd=1, col="red")
