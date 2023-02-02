@@ -53,7 +53,7 @@ MAGMA.SPA <- function(dummyVar="",env=.GlobalEnv) {
 		clusterLocal <- makeCluster(c(rep("localhost",parallelThreads)),type="SOCK")
 		registerDoParallel(clusterLocal)
 
-		moduleList=sapply( colnames(MEs),function(x) as.vector(data.frame(do.call("rbind",strsplit(  data.frame(do.call("rbind",strsplit(rownames(cleanDat),"[|]")))[,1]  ,"[;]")))[,1]  )[which(unlist(NETcolors)==x)] )
+		moduleList=sapply( colnames(MEs),function(x) as.vector(data.frame(do.call("rbind",strsplit(  paste0(data.frame(do.call("rbind",strsplit(rownames(cleanDat),"[|]")))[,1],";")  ,"[;]")))[,1]  )[which(unlist(NETcolors)==x)] )
 		nModules=length(names(moduleList))
 		for (b in 1:nModules) {
 			moduleList[[b]] <- unique(moduleList[[b]][moduleList[[b]] != ""])
@@ -219,7 +219,8 @@ MAGMA.SPA <- function(dummyVar="",env=.GlobalEnv) {
 		allBarData[!is.finite(allBarData)]<-0
 	
 		xlabels = if (relatednessOrderBar) { orderedLabels[match(colnames(MEs),orderedLabels[,2]),1] } else { xlabels.rankOrder }
-		if (relatednessOrderBar) allBarData <- allBarData[,colnames(MEs)]
+		# handle single GWAS list input case, and reorder module bars if relatednessOrderBar==TRUE   # Feb 2, 2023 bugfix.
+		if (as.numeric(length(MAGMAinputs))==1) { allBarData<-data.frame(oneInput=allBarData[if (relatednessOrderBar) { colnames(MEs) } else { 1:ncol(MEs) }]); colnames(allBarData)=as.character(MAGMAinputs)[1]; allBarData=t(allBarData); }  else { if (relatednessOrderBar) allBarData <- allBarData[,colnames(MEs)] }
 
 	} #end if (!plotOnly)
 
@@ -290,3 +291,4 @@ MAGMA.SPA <- function(dummyVar="",env=.GlobalEnv) {
 
 return(list(allBarData=allBarData,xlabels=xlabels, all_output=all_output))
 }  # end Function MAGMA.SPA
+						 
