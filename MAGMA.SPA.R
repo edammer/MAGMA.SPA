@@ -72,6 +72,7 @@ MAGMA.SPA <- function(dummyVar="",env=.GlobalEnv) {
 		xlabels.rankOrder <- orderedLabels[,1] 
 	
 		cat(paste0("Performing boostrap statistics to find mean scaled enrichment scores of significant gene-level risk in ",nModules," modules with ",length(MAGMAinputs)," lists.\n[1 list per each of up to ",parallelThreads," threads at a time]...\n"))
+		parallel::clusterExport(cl=clusterLocal, list("maxP","MAGMAinputDir","geneList","xlabels.rankOrder","MAGMAinputs","FDR"), envir=environment())   ## avoid variable not found error during foreach below:
 		statOutList <- foreach(thisMAGMAinputFile=as.character(MAGMAinputs)) %dopar% {
 	
 			## Prepare SNP_data
